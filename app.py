@@ -1,7 +1,8 @@
 import os
 import streamlit as st
+from utils.logger import log
 
-from config import UPLOAD_DIR, TOP_K
+from config import UPLOAD_DIR, TOP_K, FAISS_INDEX_PATH
 
 from ingestion.loader import load_document
 from ingestion.preprocessing import clean_text
@@ -11,6 +12,13 @@ from embeddings.embedder import TextEmbedder
 from vectorstore.faiss_store import FAISSVectorStore
 from rag.generator import GroqGenerator
 from rag.retriever import Retriever
+
+
+# ------------------------------
+# Paths
+# ------------------------------
+INDEX_PATH = FAISS_INDEX_PATH
+CHUNKS_PATH = os.path.join(os.path.dirname(FAISS_INDEX_PATH), "chunks.pkl")
 
 
 # ------------------------------
@@ -41,7 +49,7 @@ if "suggested_questions" not in st.session_state:
 
 
 # ------------------------------
-# Sidebar: File Upload
+# Sidebar Upload
 # ------------------------------
 st.sidebar.header("📂 Upload Document")
 
@@ -51,6 +59,22 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
+
+# ------------------------------
+# LOAD EXISTING INDEX (ONLY IF NO NEW FILES)
+# ------------------------------
+if not uploaded_files and os.path.exists(INDEX_PATH) and os.path.exists(CHUNKS_PATH):
+    log("Loading existing FAISS index...")
+    vector_store = FAISSVectorStore(embedding_dim=384)
+    vector_store.load_data(INDEX_PATH, CHUNKS_PATH)
+
+    st.session_state.vector_store = vector_store
+    st.session_state.chunks = vector_store.text_chunks
+
+
+# ------------------------------
+# PROCESS NEW FILES
+# ------------------------------
 if uploaded_files:
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -64,12 +88,12 @@ if uploaded_files:
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-            # Ingestion pipeline
+            # Ingestion
             raw_text = load_document(file_path)
             cleaned_text = clean_text(raw_text)
             chunks = chunk_text(cleaned_text)
 
-            # Add metadata
+            # Metadata
             labeled_chunks = [
                 f"[Doc: {uploaded_file.name} | Chunk {i+1}] {chunk}"
                 for i, chunk in enumerate(chunks)
@@ -77,12 +101,17 @@ if uploaded_files:
 
             all_chunks.extend(labeled_chunks)
 
-        # Embeddings
+        # Embedding ONLY when new data
+        log("Generating embeddings...")
         embeddings = st.session_state.embedder.embed_texts(all_chunks)
 
-        # Vector store
+        # Create new FAISS
         vector_store = FAISSVectorStore(embedding_dim=embeddings.shape[1])
         vector_store.add_embeddings(embeddings, all_chunks)
+
+        # Save
+        log("Saving FAISS index...")
+        vector_store.save_data(INDEX_PATH, CHUNKS_PATH)
 
         st.session_state.vector_store = vector_store
         st.session_state.chunks = all_chunks
@@ -105,7 +134,7 @@ if st.session_state.suggested_questions:
 
 
 # ------------------------------
-# Main Area
+# Main UI
 # ------------------------------
 st.header("💬 Ask a Question")
 
@@ -128,17 +157,11 @@ if col1.button("Get Answer"):
     else:
         with st.spinner("Generating grounded answer..."):
             generator = GroqGenerator()
-
-            # Retriever layer (FIXED)
             retriever = Retriever(st.session_state.vector_store)
 
-            # Query rewriting
             rewritten_query = generator.rewrite_query(question)
-
-            # Retrieval
             relevant_chunks = retriever.retrieve(rewritten_query, top_k=TOP_K)
 
-            # Generation
             answer = generator.generate_answer(rewritten_query, relevant_chunks)
 
             st.session_state.chat_history.append((question, answer))

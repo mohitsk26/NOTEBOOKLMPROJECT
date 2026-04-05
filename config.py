@@ -6,7 +6,7 @@ load_dotenv()
 
 # API KEYS
 
-GROQ_API_KEY = os.getenv("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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # MODEL CONFIG
 # ========================

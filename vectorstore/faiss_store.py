@@ -5,7 +5,7 @@ from typing import List
 
 class FAISSVectorStore:
     def __init__(self, embedding_dim: int):
-        self.index = faiss.IndexFlatIP(embedding_dim)  # cosine-compatible
+        self.index = faiss.IndexFlatIP(embedding_dim)
         self.text_chunks = []
 
     def add_embeddings(self, embeddings: np.ndarray, chunks: List[str]):
@@ -30,3 +30,15 @@ class FAISSVectorStore:
                 results.append(self.text_chunks[idx])
 
         return results
+
+    # -----------------------------
+    # NEW: Save FAISS index
+    # -----------------------------
+    def save_index(self, path: str):
+        faiss.write_index(self.index, path)
+
+    # -----------------------------
+    # NEW: Load FAISS index
+    # -----------------------------
+    def load_index(self, path: str):
+        self.index = faiss.read_index(path)

@@ -4,16 +4,14 @@ def chunk_text(
     overlap: int = 100
 ) -> list:
     """
-    Split text into overlapping chunks
-    
-    Args:
-        text (str): Cleaned text
-        chunk_size (int): Number of words per chunk
-        overlap (int): Overlapping words between chunks
-    
-    Returns:
-        List of text chunks
+    Split text into overlapping chunks with validation
     """
+
+    if not text:
+        return []
+
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be smaller than chunk_size")
 
     words = text.split()
     chunks = []
@@ -22,21 +20,11 @@ def chunk_text(
     total_words = len(words)
 
     while start < total_words:
-        end = start + chunk_size
+        end = min(start + chunk_size, total_words)
         chunk = words[start:end]
-        chunks.append(" ".join(chunk))
-        start = end - overlap
 
-        if start < 0:
-            start = 0
+        chunks.append(" ".join(chunk))
+
+        start += chunk_size - overlap  # safer increment
 
     return chunks
-
-
-# Example usage (for testing)
-if __name__ == "__main__":
-    sample_text = " ".join([f"word{i}" for i in range(1, 2000)])
-    chunks = chunk_text(sample_text)
-
-    print(f"Total chunks: {len(chunks)}")
-    print("First chunk:", chunks[0][:300])

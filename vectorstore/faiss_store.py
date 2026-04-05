@@ -1,5 +1,6 @@
 import faiss
 import numpy as np
+import pickle
 from typing import List
 
 
@@ -32,13 +33,17 @@ class FAISSVectorStore:
         return results
 
     # -----------------------------
-    # NEW: Save FAISS index
+    # SAVE BOTH INDEX + CHUNKS
     # -----------------------------
-    def save_index(self, path: str):
-        faiss.write_index(self.index, path)
+    def save_data(self, index_path: str, chunks_path: str):
+        faiss.write_index(self.index, index_path)
+        with open(chunks_path, "wb") as f:
+            pickle.dump(self.text_chunks, f)
 
     # -----------------------------
-    # NEW: Load FAISS index
+    # LOAD BOTH INDEX + CHUNKS
     # -----------------------------
-    def load_index(self, path: str):
-        self.index = faiss.read_index(path)
+    def load_data(self, index_path: str, chunks_path: str):
+        self.index = faiss.read_index(index_path)
+        with open(chunks_path, "rb") as f:
+            self.text_chunks = pickle.load(f)

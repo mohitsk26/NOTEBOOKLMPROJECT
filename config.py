@@ -80,3 +80,62 @@ def print_config():
     print(f"CHUNK_SIZE: {CHUNK_SIZE}, OVERLAP: {CHUNK_OVERLAP}")
     print(f"TOP_K: {TOP_K}")
     print(f"UPLOAD_DIR: {UPLOAD_DIR}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#  Dependencies (IMPORTANT — Tell Interviewer)
+# pip install python-dotenv
+# Example FOR .env File
+# GROQ_API_KEY=your_key_here
+# CHUNK_SIZE=500
+# CHUNK_OVERLAP=100
+# TOP_K=3
+# EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+# LLM_MODEL=llama3-8b-8192
+
+
+
+
+
+
+
+#  Fixed getenv bug
+#  Added env-based config (dev/prod)
+#  Added type validation
+#  Added logical validation
+#  Made models dynamic
+#  Added directory safety
+#  Kept code simple (no over-engineering)
+
+# Alternatives:
+#  Pydantic BaseSettings
+#  YAML config files
+#  Config server (AWS/GCP)
+
+# Trade-off:
+#  Manual validation instead of schema-based
+
+
+
+

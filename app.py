@@ -1,6 +1,8 @@
 import os
 import streamlit as st
 
+from config import UPLOAD_DIR, TOP_K
+
 from ingestion.loader import load_document
 from ingestion.preprocessing import clean_text
 from ingestion.chunking import chunk_text
@@ -8,6 +10,7 @@ from ingestion.chunking import chunk_text
 from embeddings.embedder import TextEmbedder
 from vectorstore.faiss_store import FAISSVectorStore
 from rag.generator import GroqGenerator
+from rag.retriever import Retriever
 
 
 # ------------------------------
@@ -17,8 +20,9 @@ st.set_page_config(page_title="NotebookLM-style AI", layout="wide")
 st.title("📘 NotebookLM-style AI Assistant")
 st.write("Upload documents and ask grounded questions with citations.")
 
+
 # ------------------------------
-# Session State
+# Session State Initialization
 # ------------------------------
 if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
@@ -35,6 +39,7 @@ if "chat_history" not in st.session_state:
 if "suggested_questions" not in st.session_state:
     st.session_state.suggested_questions = []
 
+
 # ------------------------------
 # Sidebar: File Upload
 # ------------------------------
@@ -47,23 +52,24 @@ uploaded_files = st.sidebar.file_uploader(
 )
 
 if uploaded_files:
-    upload_dir = "data/uploads"
-    os.makedirs(upload_dir, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     all_chunks = []
 
     with st.spinner("Processing documents..."):
         for uploaded_file in uploaded_files:
-            file_path = os.path.join(upload_dir, uploaded_file.name)
+            file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
 
+            # Save file
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
+            # Ingestion pipeline
             raw_text = load_document(file_path)
             cleaned_text = clean_text(raw_text)
             chunks = chunk_text(cleaned_text)
 
-            # add document metadata
+            # Add metadata
             labeled_chunks = [
                 f"[Doc: {uploaded_file.name} | Chunk {i+1}] {chunk}"
                 for i, chunk in enumerate(chunks)
@@ -71,28 +77,32 @@ if uploaded_files:
 
             all_chunks.extend(labeled_chunks)
 
+        # Embeddings
         embeddings = st.session_state.embedder.embed_texts(all_chunks)
 
+        # Vector store
         vector_store = FAISSVectorStore(embedding_dim=embeddings.shape[1])
         vector_store.add_embeddings(embeddings, all_chunks)
 
         st.session_state.vector_store = vector_store
         st.session_state.chunks = all_chunks
 
-        # Generate suggested questions
+        # Suggested questions
         generator = GroqGenerator()
         st.session_state.suggested_questions = generator.generate_questions(all_chunks)
 
     st.sidebar.success(f"Processed {len(all_chunks)} chunks")
 
+
 # ------------------------------
-# Sidebar: Suggested Questions
+# Suggested Questions
 # ------------------------------
 if st.session_state.suggested_questions:
     st.sidebar.subheader("💡 Suggested Questions")
     for q in st.session_state.suggested_questions:
         if st.sidebar.button(q):
             st.session_state.selected_question = q
+
 
 # ------------------------------
 # Main Area
@@ -106,6 +116,7 @@ question = st.text_input(
 
 col1, col2 = st.columns(2)
 
+
 # ------------------------------
 # Ask Question
 # ------------------------------
@@ -118,18 +129,17 @@ if col1.button("Get Answer"):
         with st.spinner("Generating grounded answer..."):
             generator = GroqGenerator()
 
-            # Agentic step: rewrite query
+            # Retriever layer (FIXED)
+            retriever = Retriever(st.session_state.vector_store)
+
+            # Query rewriting
             rewritten_query = generator.rewrite_query(question)
 
-            query_embedding = st.session_state.embedder.embed_query(rewritten_query)
+            # Retrieval
+            relevant_chunks = retriever.retrieve(rewritten_query, top_k=TOP_K)
 
-            relevant_chunks = st.session_state.vector_store.similarity_search(
-                query_embedding, top_k=5
-            )
-
-            answer = generator.generate_answer(
-                rewritten_query, relevant_chunks
-            )
+            # Generation
+            answer = generator.generate_answer(rewritten_query, relevant_chunks)
 
             st.session_state.chat_history.append((question, answer))
 
@@ -140,8 +150,9 @@ if col1.button("Get Answer"):
             for i, chunk in enumerate(relevant_chunks, 1):
                 st.markdown(f"**Chunk {i}:** {chunk}")
 
+
 # ------------------------------
-# Summarize Document
+# Summarization
 # ------------------------------
 if col2.button("Summarize Document"):
     if not st.session_state.chunks:
@@ -153,6 +164,7 @@ if col2.button("Summarize Document"):
 
         st.subheader("📝 Document Summary")
         st.write(summary)
+
 
 # ------------------------------
 # Chat History

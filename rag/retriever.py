@@ -9,24 +9,24 @@ class Retriever:
     """
 
     def __init__(self, vector_store: FAISSVectorStore):
-        # Store reference to FAISS vector store
+        # Store FAISS instance
         self.vector_store = vector_store
 
-        # Initialize embedder (same model used for chunks)
+        # Initialize embedder (same model as used for chunks)
         self.embedder = TextEmbedder()
 
     def retrieve(self, query: str, top_k: int = TOP_K):
         """
-        Retrieve top-k relevant chunks for a query
+        Convert query → embedding → retrieve top-k chunks
         """
 
         if not query:
             raise ValueError("Query cannot be empty")
 
-        # STEP 1: Convert query → embedding
+        # STEP 1: Query → embedding
         query_embedding = self.embedder.embed_query(query)
 
-        # STEP 2: Search in FAISS
+        # STEP 2: FAISS search
         results = self.vector_store.similarity_search(
             query_embedding,
             top_k=top_k
